@@ -1,0 +1,494 @@
+---
+title: "proyecto2"
+author: "Dilson Lazaro Ospino"
+author: "Javier Daza Perez"
+date: "2022-08-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# observar la ruta predeterminada
+getwd()
+library(readxl)
+library(dplyr)
+
+#crear un objeto llamado dats para cargar el .xlsx
+dats <- read_xlsx("/home/dlsnlz/dataNutri.xlsx")
+class(dats)
+View(head(dats,10))
+```
+
+```{r}
+# obtener mayor información del dataframe cargado
+str(dats)
+summary(dats)
+```
+```{r}
+#Visualizar y contar cantidad de datos NA
+which(is.na(dats))
+sum(is.na(dats))
+```
+
+```{R}
+#Corregir formato de columnas
+#Convertir de chr a numeric
+class(dats$cadera)
+dats$peso_kg <- as.numeric(dats$peso_kg)
+dats$cadera <- as.numeric(dats$cadera)
+dats$pliegue_cutaneo_BICEPS<-as.numeric(dats$pliegue_cutaneo_BICEPS)
+dats$pliegue_cutaneo_ESCAPULAR<-as.numeric(dats$pliegue_cutaneo_ESCAPULAR)
+dats$pliegue_cutaneo_SUPRAILIACO<-as.numeric(dats$pliegue_cutaneo_SUPRAILIACO)
+dats$pliegue_cutaneo_TRICEPS<-as.numeric(dats$pliegue_cutaneo_TRICEPS)
+```
+
+```{r}
+# limpiar y adeacuar el frame para
+# comenzar a realizar estadística descriptiva
+# para eso se seleccionan todas las filas que 
+# tienen sus datos completos
+dframe <- dats[complete.cases(dats),]
+
+#Visualizar y contar cantidad de datos NA
+#para comprobrar que dframe ya no tienen NA
+#en las filas
+which(is.na(dframe))
+sum(is.na(dframe))
+```
+Se guarda la data limpia
+```{r}
+save(dframe, file = "dframe2.Rdata")
+```
+
+## Estadística Descriptiva (Medidas de tendencia central)
+## Media
+
+```{r}
+#Media cuantitativa
+sapply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],mean)
+```
+
+```{R}
+#Media cualitativa
+#Relación de media del target agrupado por sexo
+mcuali <- aggregate(x= dframe$target,
+                    by = list(sexo = dframe$sexo),
+                    FUN = mean)
+mcuali
+```
+##Mediana
+```{R}
+#Mediana cuantitativa
+apply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],2, median) 
+```
+
+```{R}
+#Mediana cualitativa
+medianCualit <- aggregate(x= dframe$target,     
+         by = list(sexo=dframe$sexo),      
+         FUN = median)
+View(medianCualit)
+```
+
+##Moda
+```{R}
+install.packages("modeest")
+library(modeest)
+#Moda cuantitativa
+apply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],2,mlv)
+```
+
+```{R}
+#Moda cualitativa
+modaCualit <- aggregate(x= dframe$target,    
+         by = list(sexo=dframe$sexo),      
+         FUN = mlv)
+View(modaCualit)
+```
+## Estadística Descriptiva (Medidas de Dispersión)
+
+varianza<-function(x){ 
+  return (round(var(x),2))
+}
+
+#Varianza
+```{R}
+#Varianza cuantitativa
+apply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],2,FUN=varianza)
+
+```
+
+```{R}
+#Varianza cualitativa
+Vcualita <- dframe %>%
+  select(target, sexo) %>% 
+  group_by(sexo = sexo) %>% 
+  summarize(Var = varianza(target))
+View(Vcualita)
+```
+
+#DesviaciónEstandar
+
+desviacion.estandar<-function(x){ 
+  return (round(sd(x),2))
+}
+
+```{R}
+#DE cuantitativa
+apply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],2,FUN=desviacion.estandar) 
+
+```
+
+```{R}
+#DE cualitativa
+deCualita <- dframe %>%
+  select(sexo, target) %>% 
+  group_by(sexo = sexo) %>% 
+  summarize(DE = desviacion.estandar(target))
+View(deCualita)
+
+```
+
+#CoeficienteVariacion
+
+coeficiente.variacion<-function(x){ 
+  m = mean(x)
+  s = sd(x)
+  return ( round(m/s * 100,2))
+}
+
+```{R}
+#CV cuantitativa
+apply(dframe[,c(-1,-2,-3,-19,-20,-21,-22)],2,FUN=coeficiente.variacion)
+
+```
+
+```{R}
+#CV cualitativa
+coefVar <- dframe %>%
+  select(sexo, target) %>% 
+  group_by(sexo = sexo) %>% 
+  summarize(CV = coeficiente.variacion(target))
+coefVar$CV <- coefVar$CV/100
+View(coefVar)
+
+```
+
+## Estadística Descriptiva (Correlacion)
+#Correlacion
+```{R}
+install.packages("corrplot")
+library(corrplot)
+
+#Correlacion cuantitativa
+print(cor(dframe[,c(-1,-2,-3,-19,-20,-21,-22)]))
+```
+
+#CorrelacionPearson
+```{R}
+#observar CP
+install.packages("mlr")
+library(mlr)
+cor.test(dframe$IMC, dframe$peso_kg, method = 'pearson')
+
+```
+
+#CorrelacionSpearman
+```{R}
+#Observar CS
+cor.test(dframe$IMC,dframe$peso_kg, method = 'spearman')
+
+```
+
+###EstadísticaInferencial
+
+```{R}
+library(ggplot2)
+library(gplots)
+# se observa la distribución de la variable IMC
+p1 = ggplot(dframe, aes(x = IMC)) + 
+  geom_histogram(aes(y = ..density..), fill = "#4271AE") +
+  stat_function(fun = dnorm, colour = "orange",
+                args = list(mean = mean(dframe$IMC,
+                                        na.rm = TRUE),
+                            sd = sd(dframe$IMC, na.rm = 
+                                      TRUE)))+
+  ggtitle("IMC")
+p1
+```
+
+```{R}
+p2 = ggplot(dframe, aes(x = circun_cuello)) + 
+  geom_histogram(aes(y = ..density..), fill = "#4271AE") +
+  stat_function(fun = dnorm, colour = "red",
+                args = list(mean = mean(dframe$circun_cuello,
+                                        na.rm = TRUE),
+                            sd = sd(dframe$circun_cuello, na.rm = 
+                                      TRUE)))+
+  ggtitle("circun_cuello")
+p2
+```
+
+VER LA NORMALIDAD DE LOS DATOS.
+
+PLANTEAMIENTO DE LAS HIPÓTESIS
+
+Ho: la circunferencia del cuello esta relacionada con la estatura.
+Ha:la circunferencia del cuello no esta relacionada con la estatura.
+
+Nivel de significancia = 5% (0.05)
+
+```{R}
+library(dplyr)
+library(readr)
+library(ParamHelpers)
+library(mlr)
+install.packages(VIM)
+library(VIM)
+library(statsr)
+#normalidad circunferencia del cuello
+#normallidad IMC
+qqnorm(dframe$IMC)
+qqline(dframe$circun_cuello)
+```
+
+```{r}
+# Transformando la variable
+install.packages("nortest")
+library(nortest)
+lillie.test(dframe$IMC)$p.value
+
+lillie.test(dframe$circun_cuello)$p.value
+
+```
+Conclusión: la circunferencia del cuello no está relacionada con la estatura.
+
+##Generar nuevas variables
+```{R}
+#queremos conseguir una aproximación de la estatura
+#con la combinación de algunas variables dadas 
+#y anexarla a dframe como una nueva variable o driver
+
+estatura_aprox <- 100+dframe$peso_kg
+estatura_aprox
+
+dframe1 <- cbind(dframe,estatura_aprox)
+dframe1
+```
+
+##Generar nuevas variables de valor
+```{R}
+# generar nuevar variable de valor
+# para poder hacer EDA con esta.
+sexoF <- filter(dframe1, dframe1$sexo == 'F')
+sexoM <- filter(dframe1, dframe1$sexo == 'M')
+#cambiar todos los F de sexo por el numero 0
+sexoF$sexo <- if(sexoF[,3]=='F'){
+  sexoF[,3] <- 0
+}
+#cambiar todos los M de sexo por el numero 1
+sexoM$sexo <- if(sexoM[,3]=='M'){
+  sexoM[,3] <- 2
+}
+#remplazar nuevo data.frame con variable sexo numerica
+dframe1 <- rbind(sexoF,sexoM)
+View(dframe1)
+```
+
+##Realizar EDA
+```{R}
+#generar graficos
+hist(dframe1$sexo,ylim=c(0,520),main = "Histograma Sexo", xlim = c(0,2), breaks = 2)
+
+#alternativa de analisis
+plot(dframe1$sexo,main = "Histograma Sexo")
+
+#cajas y bigotes para IMC
+boxplot(dframe1$IMC)
+quantile(dframe1$IMC,0.25)
+quantile(dframe1$IMC,0.50)
+quantile(dframe1$IMC,0.75)
+ri <- quantile(dframe1$IMC,0.5) - quantile(dframe1$IMC,0.25)
+ri
+## los datos en su mayoría están cercanos a la media.
+```
+##Realizar segmentación
+
+#instalamos paquetes
+```{R}}
+install.packages("easypackages")
+library("easypackages") # instalamos y cargamos los paquetes
+paq <- c("car", "ggplot2", "ggcorrplot", "dplyr", "readxl", "FactoMineR", "corrplot", "GGally", "factoextra", "Hmisc", "PerformanceAnalytics")
+packages(paq)
+```
+```{r}
+dnutricion <- dframe1
+dnutricion <- dframe1[,-1]  
+
+dnutricion <- dnutricion %>%
+  mutate_all(as.numeric)
+
+head(dnutricion, 6)
+View(dnutricion)
+head(dframe1) # data original
+```
+
+```{r}
+dnutricion <- dframe1[,c(-1,-2,-18,-19,-20,-21,-22)]
+str(dnutricion) #data seleccionada para el análisis clUster
+```
+
+##2. Viendo que las variables estan en diferentes escalas, vamos a normalizar las puntuaciones:
+
+```{r}
+dnutricion <- scale(dnutricion)
+View(dnutricion)
+
+```
+
+## 3. Calcular las distancias
+
+```{r}
+installed.packages("factoextra")
+
+Distancias <- get_dist(dnutricion, method = "euclidean") 
+
+fviz_dist(Distancias, gradient = list(low = "blue", mid = "white", high = "red"))
+
+# Como son bastantes casos, el gráfico no se aprecia mucho; con pocos caso se ve mejor
+```
+
+## 4. Nro de clusters.
+
+Vamos a estimar el numero de clusters idoneo: Elbow
+```{r}
+
+fviz_nbclust(dnutricion, kmeans, method = "wss")
+
+```
+
+Vamos a estimar el numero de clusters idoneo: silhouette
+```{r}
+fviz_nbclust(dnutricion, kmeans, method = "silhouette")
+
+```
+
+Vamos a estimar el numero de clusters idoneo: gap_stat
+```{r}
+
+fviz_nbclust(dnutricion, kmeans, method = "gap_stat")
+
+```
+
+
+## 5. Realizaremos una clasificacion Jerarquica para visualizar posible nro de clusters
+
+```{r}
+
+CJerarquico <- hcut(dnutricion, k = 5, stand = TRUE) #k = 2 a más
+fviz_dend(CJerarquico, rect = TRUE, cex = 0.5,
+          k_colors = c("red","#2E9FDF","green","black", "blue"))
+
+```
+
+## 6. Calculamos los k=5 clústers; podemos probar igual con 3 y 4 clusters.
+
+```{r}
+
+kmeans5 <- kmeans(dnutricion, centers = 5, nstart = 25)
+kmeans5
+head(dnutricion)
+
+```
+
+estructura k-means
+```{r}
+
+str(kmeans5)
+
+```
+
+Centroides de los clusters:
+
+```{r}
+kmeans5$centers
+```
+
+Tamaño de los clusters:
+```{r}
+
+kmeans5$size
+
+```
+
+
+
+## Graficar los clusters
+
+Grafico de los cluster's
+```{r}
+
+fviz_cluster(list(data = dnutricion, cluster = kmeans5$cluster))
+
+
+```
+
+2do tipo de grafico
+```{r}
+
+fviz_cluster(list(data = dnutricion, cluster = kmeans5$cluster), ellipse.type = "euclid",repel = TRUE,star.plot = TRUE)
+
+```
+
+3er tipo de grafico
+```{r}
+fviz_cluster(list(data = dnutricion, cluster = kmeans5$cluster),ellipse.type = "norm")
+
+
+```
+
+
+4to tipo de grafico
+```{r}
+
+fviz_cluster(list(data = dnutricion, cluster = kmeans5$cluster), ellipse.type = "norm",palette = "Set2", ggtheme = theme_minimal())
+
+
+```
+
+Guardamos el cluster en la base de datos originales:
+
+```{r}
+cluster <- data.frame(kmeans5$cluster)
+
+data_nutricion_c <- data_nutricion
+data_nutricion_c$cluster <- as.factor(cluster$kmeans5.cluster)
+  
+head(data_nutricion_c)
+View(data_nutricion_c)
+```
+
+#Observaremos las caracteristicas de los clusters
+
+```{r}
+
+dnutricion <- data_nutricion_c
+dnutricion <- dnutricion[,-1] 
+View(dnutricion)
+
+str(dnutricion)
+
+dnutricion <- dnutricion %>%
+  mutate_all(as.numeric)
+
+aa<- dnutricion %>%
+  mutate(cluster = dnutricion$cluster) %>%
+  group_by(cluster) %>%
+  summarise_all("mean")
+
+View(aa)
+```
+
+
+##Modelo logistico
+---
